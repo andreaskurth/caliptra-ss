@@ -189,18 +189,40 @@ module fc_lcc_tb_services (
   // Top-level service: Force FC, LCC reset for 10 cycles then release it.
   // Here we choose the command 8'h10 for FC, LCC reset.
   //-------------------------------------------------------------------------
-  reg  [3:0] fc_lcc_reset_counter;
-  reg        fc_lcc_reset_active;
+  localparam int unsigned FC_LCC_RESET_COUNTDOWN_INIT = 100;
+  localparam int unsigned FC_LCC_RESET_COUNTDOWN_WIDTH = $clog2(FC_LCC_RESET_COUNTDOWN_INIT + 1);
+  reg [FC_LCC_RESET_COUNTDOWN_WIDTH-1:0] fc_lcc_reset_countdown;
+  reg                                    fc_lcc_reset_countdown_active;
+  reg  [3:0]                             fc_lcc_reset_counter;
+  reg                                    fc_lcc_reset_active;
 
   always_ff @(posedge clk or negedge cptra_rst_b) begin
       if (!cptra_rst_b) begin
-          fc_lcc_reset_active  <= 1'b0;
-          fc_lcc_reset_counter <= '0;
-          disable_lcc_sva      <= 1'b0;
+          fc_lcc_reset_countdown        <= '0;
+          fc_lcc_reset_countdown_active <= 1'b0;
+          fc_lcc_reset_active           <= 1'b0;
+          fc_lcc_reset_counter          <= '0;
+          disable_lcc_sva               <= 1'b0;
       end
       else begin
-          // Detect the fc_lcc reset command from the mailbox
-          if (tb_service_cmd_valid && tb_service_cmd == CMD_FC_LCC_RESET && !fc_lcc_reset_active) begin
+          if (tb_service_cmd_valid && tb_service_cmd == CMD_FC_LCC_RESET_DELAYED) begin
+              $display("Top-level: Received fc_lcc_reset_delayed command. Will activate FC LCC reset in 100 cycles.");
+              fc_lcc_reset_countdown_active <= 1'b1;
+              fc_lcc_reset_countdown <= FC_LCC_RESET_COUNTDOWN_INIT;
+          end
+          if (fc_lcc_reset_countdown_active) begin
+              if (fc_lcc_reset_countdown > '0) begin
+                  fc_lcc_reset_countdown <= fc_lcc_reset_countdown - 1;
+              end else begin
+                  fc_lcc_reset_countdown_active <= 1'b0;
+              end
+          end
+          if (!fc_lcc_reset_active && (
+                  // Detect the fc_lcc reset command from the mailbox.
+                  (tb_service_cmd_valid && tb_service_cmd == CMD_FC_LCC_RESET) ||
+                  // Detect countdown expiration.
+                  (fc_lcc_reset_countdown_active && fc_lcc_reset_countdown == '0)
+          )) begin
               fc_lcc_reset_active  <= 1'b1;
               fc_lcc_reset_counter <= '0;
               $display("Top-level: Received fc_lcc reset command. Forcing reset for 10 cycles.");
