@@ -183,20 +183,25 @@ void test_main (void) {
     reset_fc_lcc_rtl();
     wait_dai_op_idle(0);
 
-    // Step 8: Zeroize the partition.
+    // Step 8: Trigger a reset timer. This will expire at some point
+    // during the zeroization below, resetting fuse_ctrl while the
+    // partition has not been fully zeroized yet.
+    lsu_write_32(SOC_MCI_TOP_MCI_REG_DEBUG_OUT, CMD_FC_LCC_RESET_DELAYED);
+
+    // Step 9: Zeroize the partition.
     if (part_zeroize(&part, 0) != 0) {
-        VPRINTF(LOW, "ERROR: Step 8 failed!\n");
+        VPRINTF(LOW, "ERROR: Step 9 failed!\n");
         goto epilogue;
     }
 
-    // Step 9: Read the zeroization marker through the DAI. In the
+    // Step 10: Read the zeroization marker through the DAI. In the
     // previous step, SW already checked that the zeroization marker
     // returned by the zeroization command is all ones. A different
     // piece of SW might at a later point before a reset want to check
     // the zeroization status for a partition, and this is what this
     // step emulates.
     if (check_part_zeroized(&part, /*only_marker=*/1, 0) != 0) {
-        VPRINTF(LOW, "ERROR: Step 9 failed!\n");
+        VPRINTF(LOW, "ERROR: Step 10 failed!\n");
         goto epilogue;
     }
 
@@ -206,7 +211,7 @@ void test_main (void) {
     // zeroization and ensured that all fuses are now set to `1` also
     // for the data and digest part of the partition.
 
-    // Step 10: Reset.
+    // Step 11: Reset.
     reset_fc_lcc_rtl();
     wait_dai_op_idle(0);
 
